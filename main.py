@@ -1,7 +1,24 @@
 from fastapi import FastAPI, HTTPException
 from typing import List
+from fastapi.middleware.cors import CORSMiddleware
+from rich.logging import RichHandler
+import logging
+
+FORMAT = "%(message)s"
+logging.basicConfig(
+    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+)
 
 app = FastAPI()
+
+# Add CORS middleware to allow cross-origin requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # For development - you may want to restrict this in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 模擬叫號隊列
 queue = []
@@ -44,3 +61,13 @@ async def get_queue_length():
 async def get_queue():
     """取得目前叫號隊列"""
     return {"queue": queue}
+
+@app.post("/reset")
+async def reset_queue():
+    """重置等待隊列"""
+    global queue, number_counter, current_number
+    queue = []
+    number_counter = 1
+    current_number = None
+    return {"message": "以重置"}
+
