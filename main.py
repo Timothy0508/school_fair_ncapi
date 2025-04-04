@@ -1,13 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-from rich.logging import RichHandler
-import logging
-
-FORMAT = "%(message)s"
-logging.basicConfig(
-    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
-)
 
 app = FastAPI()
 
