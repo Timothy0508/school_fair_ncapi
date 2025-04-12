@@ -67,5 +67,11 @@ async def reset_queue():
 @app.get("/get-menu")
 async def get_menu():
     """取得菜單"""
-    menu = json.load('menu.json')
+    try:
+        with open("data/menu.json", "r", encoding="utf-8") as f:
+            menu = json.load(f)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="菜單檔案不存在")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="菜單檔案格式錯誤")
     return menu
