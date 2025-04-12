@@ -1,0 +1,32 @@
+[
+    {
+        "id" : 1,
+        "name" : "Pizza",
+        "description" : "Delicious cheese pizza with fresh toppings",
+        "price" : 8.99
+    },
+    {
+        "id" : 2,
+        "name" : "Burger",
+        "description" : "Juicy beef burger with lettuce and tomato",
+        "price" : 5.99
+    },
+    {
+        "id" : 3,
+        "name" : "Pasta",
+        "description" : "Creamy Alfredo pasta with garlic bread",
+        "price" : 7.49
+    },
+    {
+        "id" : 4,
+        "name" : "Salad",
+        "description" : "Fresh garden salad with vinaigrette dressing",
+        "price" : 4.99
+    },
+    {
+        "id" : 5,
+        "name" : "Soda",
+        "description" : "Refreshing carbonated drink",
+        "price" : 1.99
+    }
+]

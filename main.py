@@ -1,3 +1,4 @@
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -63,3 +64,8 @@ async def reset_queue():
     current_number = None
     return {"message": "以重置"}
 
+@app.get("/get-menu")
+async def get_menu():
+    """取得菜單"""
+    menu = json.load('menu.json')
+    return menu
