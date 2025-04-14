@@ -1,31 +1,31 @@
 [
     {
         "id" : 1,
-        "name" : "Pizza",
+        "name" : "印尼泡麵",
         "description" : "Delicious cheese pizza with fresh toppings",
         "price" : 8.99
     },
     {
         "id" : 2,
-        "name" : "Burger",
+        "name" : "美式脆薯",
         "description" : "Juicy beef burger with lettuce and tomato",
         "price" : 5.99
     },
     {
         "id" : 3,
-        "name" : "Pasta",
+        "name" : "乾冰汽水",
         "description" : "Creamy Alfredo pasta with garlic bread",
         "price" : 7.49
     },
     {
         "id" : 4,
-        "name" : "Salad",
+        "name" : "吧布冰淇淋",
         "description" : "Fresh garden salad with vinaigrette dressing",
         "price" : 4.99
     },
     {
         "id" : 5,
-        "name" : "Soda",
+        "name" : "棉花糖",
         "description" : "Refreshing carbonated drink",
         "price" : 1.99
     }
