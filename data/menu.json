@@ -2,31 +2,31 @@
     {
         "id" : 1,
         "name" : "印尼泡麵",
-        "description" : "Delicious cheese pizza with fresh toppings",
+        "description" : "口感豐富、風味濃郁的印尼風味泡麵，簡單快速就能享受異國美味。",
         "price" : 8.99
     },
     {
         "id" : 2,
         "name" : "美式脆薯",
-        "description" : "Juicy beef burger with lettuce and tomato",
+        "description" : "金黃酥脆、香氣四溢的經典美式炸薯條，越吃越涮嘴。",
         "price" : 5.99
     },
     {
         "id" : 3,
         "name" : "乾冰汽水",
-        "description" : "Creamy Alfredo pasta with garlic bread",
+        "description" : "視覺效果十足的冰涼汽水，乾冰的煙霧增添趣味性。",
         "price" : 7.49
     },
     {
         "id" : 4,
         "name" : "吧布冰淇淋",
-        "description" : "Fresh garden salad with vinaigrette dressing",
+        "description" : "清涼消暑、口味多樣的冰棒/冰淇淋，是夏日解渴的好選擇。",
         "price" : 4.99
     },
     {
         "id" : 5,
         "name" : "棉花糖",
-        "description" : "Refreshing carbonated drink",
+        "description" : "軟香甜、入口即化的棉花糖，帶來甜蜜幸福的滋味。",
         "price" : 1.99
     }
 ]
