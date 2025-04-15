@@ -1,8 +1,66 @@
 import json
-from fastapi import FastAPI, HTTPException
+import os
+import asyncio
+from typing import Optional, List
+from datetime import datetime
+
+import asyncpg
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import sqlalchemy
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, AsyncEngine
+from sqlalchemy.orm import sessionmaker
+from google.cloud.sql.connector import Connector
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Cloud SQL 連線詳細資訊 (使用 .env 檔案，更安全)
+DB_USER = os.environ.get("DB_USER")
+DB_PASS = os.environ.get("DB_PASS")
+DB_NAME = os.environ.get("DB_NAME")
+DB_HOST = os.environ.get("DB_HOST")  # Could be IP or Socket
+INSTANCE_CONNECTION_NAME = os.environ.get("INSTANCE_CONNECTION_NAME")
+
+class Item(BaseModel):
+    """商品模型"""
+    id: int  # 商品ID
+    quantity: int  # 商品數量
+    price: float  # 商品價格
+
+class Order(BaseModel):
+    """訂單模型"""
+    items: list[Item]  # 訂單項目列表
+    totalPrice: float  # 訂單總價
+    orderTime: str
+
+# SQLAlchemy 模型 (定義資料庫表格結構)
+class OrderDB:
+    __tablename__ = "orders"
+
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, index=True, autoincrement=True)
+    order_time = sqlalchemy.Column(sqlalchemy.String)
+    total_price = sqlalchemy.Column(sqlalchemy.Float)
+
+    items = sqlalchemy.orm.relationship("OrderItemDB", back_populates="order")
+
+class OrderItemDB:
+    __tablename__ = "order_items"
+
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, index=True, autoincrement=True)
+    order_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey("orders.id"))
+    item_id = sqlalchemy.Column(sqlalchemy.Integer)  # 商品ID
+    quantity = sqlalchemy.Column(sqlalchemy.Integer)
+    price = sqlalchemy.Column(sqlalchemy.Float)
+
+    order = sqlalchemy.orm.relationship("OrderDB", back_populates="items")
 
 app = FastAPI()
+engine: AsyncEngine | None = None
+async_session: sessionmaker[AsyncSession] | None = None
 
 # Add CORS middleware to allow cross-origin requests
 app.add_middleware(
@@ -12,6 +70,60 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 初始化資料庫連線
+async def init_db():
+    """
+    Initializes the database connection using the Cloud SQL Python Connector and SQLAlchemy.
+    """
+    global engine, async_session
+    if INSTANCE_CONNECTION_NAME:  # 連線到 Cloud SQL
+        connector = Connector()
+        async def getconn() -> asyncpg.Connection:
+            conn = await connector.connect(
+                INSTANCE_CONNECTION_NAME,
+                "asyncpg",
+                user=DB_USER,
+                password=DB_PASS,
+                db=DB_NAME,
+            )
+            return conn
+
+        engine = create_async_engine(
+            "postgresql+asyncpg://",
+            creator=getconn,
+            echo=False,  # 可以設定為 True 來查看 SQL 查詢
+        )
+    elif DB_HOST: # 本機連線
+        engine = create_async_engine(
+        f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}",
+        echo=False,  # 可以設定為 True 來查看 SQL 查詢
+    )
+    async_session = sessionmaker(
+        engine, expire_on_commit=False, class_=AsyncSession
+    )
+
+# FastAPI 相依性
+async def get_db_session():
+    """
+    Yields a database session for each request.
+    """
+    if async_session is None:
+        raise Exception("Database sessionmaker is not initialized.")
+    async with async_session() as session:
+        yield session
+
+# 啟動事件處理器
+@asynccontextmanager
+async def startup_event():
+    """
+    Initializes the database connection when the FastAPI application starts.
+    """
+    await init_db()
+    # Create the tables if they don't exist
+    if engine:
+        async with engine.begin() as conn:
+            await conn.run_sync(sqlalchemy.MetaData().create_all)
 
 # 模擬叫號隊列
 queue = []
@@ -75,3 +187,34 @@ async def get_menu():
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="菜單檔案格式錯誤")
     return menu
+
+# API 路由
+@app.post("/submit-order/")
+async def submit_order(order: Order, db: AsyncSession = Depends(get_db_session)):
+    """
+    處理提交訂單的請求，並將訂單儲存到資料庫中。
+    """
+    try:
+        # 創建 OrderDB 實例
+        db_order = OrderDB(
+            order_time=order.orderTime,
+            total_price=order.totalPrice,
+        )
+
+        # 創建 OrderItemDB 實例列表
+        for item in order.items:
+            db_order_item = OrderItemDB(
+                item_id=item.id,
+                quantity=item.quantity,
+                price=item.price,
+            )
+            db.add(db_order_item)  # Add each order item to the session
+
+        db.add(db_order) #  Add the order
+        await db.commit()  # Commit the transaction
+        await db.refresh(db_order) # Refresh the order to get the generated ID
+
+        return {"message": "Order submitted successfully", "order_id": db_order.id}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to submit order: {str(e)}")
