@@ -15,15 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from google.cloud.sql.connector import Connector
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Cloud SQL 連線詳細資訊 (使用 .env 檔案，更安全)
-DB_USER = os.environ.get("DB_USER")
-DB_PASS = os.environ.get("DB_PASS")
-DB_NAME = os.environ.get("DB_NAME")
-DB_HOST = os.environ.get("DB_HOST")  # Could be IP or Socket
-INSTANCE_CONNECTION_NAME = os.environ.get("INSTANCE_CONNECTION_NAME")
+DATABASE_URL = "sqlite+aiosqlite:///./orders.db"  # 使用相對於專案的檔案路徑
 
 class Item(BaseModel):
     """商品模型"""
@@ -59,8 +51,6 @@ class OrderItemDB:
     order = sqlalchemy.orm.relationship("OrderDB", back_populates="items")
 
 app = FastAPI()
-engine: AsyncEngine | None = None
-async_session: sessionmaker[AsyncSession] | None = None
 
 # Add CORS middleware to allow cross-origin requests
 app.add_middleware(
@@ -71,37 +61,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+engine: AsyncEngine | None = None
+async_session: sessionmaker[AsyncSession] | None = None
+
 # 初始化資料庫連線
 async def init_db():
     """
-    Initializes the database connection using the Cloud SQL Python Connector and SQLAlchemy.
+    Initializes the database connection using SQLite and SQLAlchemy.
     """
     global engine, async_session
-    if INSTANCE_CONNECTION_NAME:  # 連線到 Cloud SQL
-        connector = Connector()
-        async def getconn() -> asyncpg.Connection:
-            conn = await connector.connect(
-                INSTANCE_CONNECTION_NAME,
-                "asyncpg",
-                user=DB_USER,
-                password=DB_PASS,
-                db=DB_NAME,
-            )
-            return conn
-
-        engine = create_async_engine(
-            "postgresql+asyncpg://",
-            creator=getconn,
-            echo=False,  # 可以設定為 True 來查看 SQL 查詢
-        )
-    elif DB_HOST: # 本機連線
-        engine = create_async_engine(
-        f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}",
+    engine = create_async_engine(
+        DATABASE_URL,  # 使用 SQLite 連線 URL
         echo=False,  # 可以設定為 True 來查看 SQL 查詢
     )
     async_session = sessionmaker(
         engine, expire_on_commit=False, class_=AsyncSession
     )
+    # 建立資料表
+    async with engine.begin() as conn:
+        await conn.run_sync(sqlalchemy.MetaData().create_all)
 
 # FastAPI 相依性
 async def get_db_session():
@@ -114,16 +92,43 @@ async def get_db_session():
         yield session
 
 # 啟動事件處理器
-@asynccontextmanager
+@app.on_event("startup")
 async def startup_event():
     """
     Initializes the database connection when the FastAPI application starts.
     """
     await init_db()
-    # Create the tables if they don't exist
-    if engine:
-        async with engine.begin() as conn:
-            await conn.run_sync(sqlalchemy.MetaData().create_all)
+
+# API 路由
+@app.post("/submit-order/")
+async def submit_order(order: Order, db: AsyncSession = Depends(get_db_session)):
+    """
+    處理提交訂單的請求，並將訂單儲存到資料庫中。
+    """
+    try:
+        # 創建 OrderDB 實例
+        db_order = OrderDB(
+            order_time=order.orderTime,
+            total_price=order.totalPrice,
+        )
+
+        # 創建 OrderItemDB 實例列表
+        for item in order.items:
+            db_order_item = OrderItemDB(
+                item_id=item.id,
+                quantity=item.quantity,
+                price=item.price,
+            )
+            db.add(db_order_item)  # Add each order item to the session
+
+        db.add(db_order)  # Add the order
+        await db.commit()  # Commit the transaction
+        await db.refresh(db_order)  # Refresh the order to get the generated ID
+
+        return {"message": "Order submitted successfully", "order_id": db_order.id}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to submit order: {str(e)}")
 
 # 模擬叫號隊列
 queue = []
@@ -187,34 +192,3 @@ async def get_menu():
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="菜單檔案格式錯誤")
     return menu
-
-# API 路由
-@app.post("/submit-order/")
-async def submit_order(order: Order, db: AsyncSession = Depends(get_db_session)):
-    """
-    處理提交訂單的請求，並將訂單儲存到資料庫中。
-    """
-    try:
-        # 創建 OrderDB 實例
-        db_order = OrderDB(
-            order_time=order.orderTime,
-            total_price=order.totalPrice,
-        )
-
-        # 創建 OrderItemDB 實例列表
-        for item in order.items:
-            db_order_item = OrderItemDB(
-                item_id=item.id,
-                quantity=item.quantity,
-                price=item.price,
-            )
-            db.add(db_order_item)  # Add each order item to the session
-
-        db.add(db_order) #  Add the order
-        await db.commit()  # Commit the transaction
-        await db.refresh(db_order) # Refresh the order to get the generated ID
-
-        return {"message": "Order submitted successfully", "order_id": db_order.id}
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to submit order: {str(e)}")
