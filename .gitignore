@@ -164,3 +164,4 @@ cython_debug/
 #server configs
 gunicorn_start
 logs/
+orders.db
