@@ -1,19 +1,11 @@
 import json
-import os
-import asyncio
-from typing import Optional, List
-from datetime import datetime
 
-import asyncpg
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sqlalchemy
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, AsyncEngine
 from sqlalchemy.orm import sessionmaker
-from google.cloud.sql.connector import Connector
-from dotenv import load_dotenv
 
 DATABASE_URL = "sqlite+aiosqlite:///./orders.db"  # 使用相對於專案的檔案路徑
 
